@@ -1,0 +1,10 @@
+{
+  "name": "Nusuk Auto Pro",
+  "description": "Professional Nusuk automation dashboard with secure multi-user authentication, password reset, and identity extraction.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
