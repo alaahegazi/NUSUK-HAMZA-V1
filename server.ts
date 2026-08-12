@@ -289,6 +289,5 @@ app.post('/api/email/fetch-otps', async (req, res) => {
   }
 });
 
-export default app;
 
 startServer();
