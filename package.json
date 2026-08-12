@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": {
-    "build": "vite build",
-    "lint": "tsc --noEmit"
-  },
+ "scripts": {
+  "build": "vite build",
+  "lint": "tsc --noEmit"
+},
   "dependencies": {
     "@google/genai": "^1.38.0",
     "express": "^5.2.1",
