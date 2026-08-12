@@ -302,3 +302,19 @@ app.get('/{*splat}', (req, res) => {
 app.listen(process.env.PORT || 3000, '0.0.0.0', () => {
   console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
+
+const distPath = path.join(process.cwd(), 'dist');
+
+app.use(express.static(distPath));
+
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+const PORT = Number(process.env.PORT) || 3000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+export default app;
