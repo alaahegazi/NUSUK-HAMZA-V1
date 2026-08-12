@@ -290,4 +290,15 @@ app.post('/api/email/fetch-otps', async (req, res) => {
 });
 
 
-export default app;
+// Serve the built Vite frontend
+const distPath = path.join(process.cwd(), 'dist');
+
+app.use(express.static(distPath));
+
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+app.listen(process.env.PORT || 3000, '0.0.0.0', () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
+});
