@@ -308,7 +308,7 @@ const App: React.FC = () => {
     if (!newGroupName.trim()) return;
     
     const newGroup: Group = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       name: newGroupName.trim(),
       createdAt: new Date().toISOString()
     };
