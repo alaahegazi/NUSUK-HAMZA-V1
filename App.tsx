@@ -256,7 +256,7 @@ const App: React.FC = () => {
         const activeGroup = selectedGroupId === 'all' ? (groups[0]?.id || 'general') : selectedGroupId;
 
         const newTasks: AutomationTask[] = data.map(v => ({
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           status: TaskStatus.COMPLETED,
           groupId: activeGroup,
           accountCreated: false,
