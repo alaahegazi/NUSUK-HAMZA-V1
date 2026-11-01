@@ -366,6 +366,7 @@ const App: React.FC = () => {
   };
 
   // إذا لم يكن هناك مستخدم مسجل دخول، نعرض شاشة المصادقة الآمنة
+  if (!authReady) return <div className="min-h-screen bg-[#020202] text-white flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
   if (!currentUser) {
     return <AuthScreen onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
