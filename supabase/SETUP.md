@@ -3,8 +3,9 @@
 ## 1. Create the database schema
 1. Open the Supabase project dashboard.
 2. Open **SQL Editor** and create a new query.
-3. Copy the complete contents of `supabase/migrations/202611010001_initial_schema.sql`.
-4. Run it once and confirm it completes successfully.
+3. Copy and run `supabase/migrations/202611010001_initial_schema.sql`.
+4. Then copy and run `supabase/migrations/202611010002_app_string_ids.sql`.
+5. Confirm both queries complete successfully.
 
 The migration creates:
 - `agency_groups`: groups owned by an authenticated user.
@@ -30,3 +31,7 @@ Do not persist mailbox app passwords, Supabase secrets, or one-time verification
 
 ## 5. Current implementation status
 This migration and setup guide are committed on the isolated `feature/supabase-cloud-sync` branch. The app's runtime authentication and synchronization have not yet been switched over; the original `main` branch remains unchanged.
+
+
+## 6. Current cloud service foundation
+The branch now includes a browser Supabase client (`services/supabaseClient.ts`) and tenant-scoped group/task persistence helpers (`services/cloudDataService.ts`). These are foundations only: the existing login screen and App state are not yet switched to Supabase Auth/cloud sync. Do not deploy this branch as a completed cloud-connected release until that integration and a production build are tested.
