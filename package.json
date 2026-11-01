@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-"scripts": {
-  "build": "vite build",
-  "lint": "tsc --noEmit"
-},
+  "scripts": {
+    "build": "vite build",
+    "lint": "tsc --noEmit"
+  },
   "dependencies": {
     "@google/genai": "^1.38.0",
     "express": "^5.2.1",
@@ -14,7 +14,8 @@
     "lucide-react": "^0.562.0",
     "mailparser": "^3.9.14",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "@supabase/supabase-js": "^2.57.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
