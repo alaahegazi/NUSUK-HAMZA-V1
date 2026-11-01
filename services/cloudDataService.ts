@@ -32,8 +32,9 @@ export const cloudDataService = {
 
   async saveGroups(userId: string, groups: Group[]): Promise<void> {
     const db = requireSupabase();
-    if (!groups.length) return;
-    const rows = groups.map(g => ({ id: g.id, user_id: userId, name: g.name, created_at: g.createdAt }));
+    const cloudGroups = groups.filter(g => g.id !== 'general');
+    if (!cloudGroups.length) return;
+    const rows = cloudGroups.map(g => ({ id: g.id, user_id: userId, name: g.name, created_at: g.createdAt }));
     const { error } = await db.from('agency_groups').upsert(rows, { onConflict: 'id' });
     if (error) throw error;
   },
