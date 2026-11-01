@@ -4,7 +4,8 @@ import {
   ShieldCheck, UserPlus, QrCode, User as UserIcon, 
   CreditCard, Calendar, Smartphone, Copy, CheckCircle2, Search, Mail, Info,
   Users, Folder, FolderPlus, Plus, ChevronLeft, LogOut, Settings, Building,
-  KeyRound, Zap, RefreshCw, Inbox, Sparkles, Check, AlertCircle, ExternalLink
+  KeyRound, Zap, RefreshCw, Inbox, Sparkles, Check, AlertCircle, ExternalLink,
+  Download, FileSpreadsheet
 } from 'lucide-react';
 import { AutomationTask, TaskStatus, VisaData, Group, User, EmailSettings } from './types';
 import { extractBulkIdentityInfo } from './services/geminiService';
@@ -14,6 +15,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { UserProfileModal } from './components/UserProfileModal';
 import { EmailConfigModal } from './components/EmailConfigModal';
 import { OtpCardField } from './components/OtpCardField';
+import { ExportModal } from './components/ExportModal';
 
 const App: React.FC = () => {
   // حالة المستخدم الحالي والجلسة الآمنة
@@ -76,6 +78,8 @@ const App: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'created' | 'not_created'>('all');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // حالات إنشاء مجموعة جديدة من الواجهة مباشرة
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -232,12 +236,22 @@ const App: React.FC = () => {
     if (!file) return;
 
     setIsExtracting(true);
+    setUploadNotice(null);
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         const base64 = (reader.result as string).split(',')[1];
-        const data = await extractBulkIdentityInfo(base64, file.type);
+        const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        const data = await extractBulkIdentityInfo(base64, mimeType);
         
+        if (!data || data.length === 0) {
+          setUploadNotice({ 
+            type: 'error', 
+            message: 'لم يتم العثور على بيانات معتمرين في هذا الملف. يرجى التأكد من وضوح كشف التأشيرات.' 
+          });
+          return;
+        }
+
         // ربط التأشيرات المرفوعة بالمجموعة المحددة حالياً
         const activeGroup = selectedGroupId === 'all' ? (groups[0]?.id || 'general') : selectedGroupId;
 
@@ -254,8 +268,17 @@ const App: React.FC = () => {
         }));
 
         setTasks(prev => [...prev, ...newTasks]);
+        setUploadNotice({
+          type: 'success',
+          message: `تم بنجاح استخراج بيانات ${newTasks.length} معتمر وإضافتهم إلى القائمة!`
+        });
+        setTimeout(() => setUploadNotice(null), 6000);
       } catch (err) {
-        alert(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
+        setUploadNotice({
+          type: 'error',
+          message: err instanceof Error ? err.message : "فشل استخراج البيانات، يرجى التأكد من جودة الملف"
+        });
+        setTimeout(() => setUploadNotice(null), 7000);
       } finally {
         setIsExtracting(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -298,12 +321,10 @@ const App: React.FC = () => {
 
   const handleDeleteGroup = (id: string) => {
     if (id === 'general') return;
-    if (window.confirm("هل أنت متأكد من حذف هذه المجموعة؟ سيتم نقل جميع المعتمرين المضافين إليها إلى المجموعة العامة.")) {
-      setGroups(prev => prev.filter(g => g.id !== id));
-      setTasks(prev => prev.map(t => t.groupId === id ? { ...t, groupId: 'general' } : t));
-      if (selectedGroupId === id) {
-        setSelectedGroupId('general');
-      }
+    setGroups(prev => prev.filter(g => g.id !== id));
+    setTasks(prev => prev.map(t => t.groupId === id ? { ...t, groupId: 'general' } : t));
+    if (selectedGroupId === id) {
+      setSelectedGroupId('general');
     }
   };
 
@@ -489,22 +510,39 @@ const App: React.FC = () => {
 
           {/* قائمة المجموعات النشطة */}
           <div className="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-            <button
-              onClick={() => setSelectedGroupId('all')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all text-right border ${
+            <div
+              className={`w-full flex items-center justify-between px-3.5 py-2 rounded-2xl text-xs font-bold transition-all text-right border group/all-item ${
                 selectedGroupId === 'all' 
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                   : 'text-slate-400 hover:bg-white/5 hover:text-slate-200 border-transparent'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedGroupId('all')}
+                className="flex-1 text-right flex items-center gap-2 min-w-0 py-1"
+              >
                 <Users size={14}/>
                 <span>جميع المعتمرين</span>
+              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="bg-white/5 px-2 py-0.5 rounded-full text-[10px] text-slate-400">
+                  {tasks.length}
+                </span>
+                {tasks.length > 0 && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedGroupId('all');
+                      setIsExportModalOpen(true);
+                    }}
+                    className="opacity-0 group-hover/all-item:opacity-100 text-slate-500 hover:text-emerald-400 transition-all p-1"
+                    title="تصدير كافة المعتمرين إلى Excel / CSV"
+                  >
+                    <Download size={12}/>
+                  </button>
+                )}
               </div>
-              <span className="bg-white/5 px-2 py-0.5 rounded-full text-[10px] text-slate-400">
-                {tasks.length}
-              </span>
-            </button>
+            </div>
 
             {groups.map(g => {
               const groupTasks = tasks.filter(t => t.groupId === g.id);
@@ -525,10 +563,23 @@ const App: React.FC = () => {
                     <Folder size={14} className={selectedGroupId === g.id ? 'text-emerald-400' : 'text-slate-500'}/>
                     <span className="truncate">{g.name}</span>
                   </button>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span className="bg-white/5 px-2 py-0.5 rounded-full text-[10px] text-slate-400 font-mono">
                       {createdCount}/{groupTasks.length}
                     </span>
+                    {groupTasks.length > 0 && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedGroupId(g.id);
+                          setIsExportModalOpen(true);
+                        }}
+                        className="opacity-0 group-hover/group-item:opacity-100 text-slate-500 hover:text-emerald-400 transition-all p-1"
+                        title="تصدير بيانات هذه المجموعة إلى Excel / CSV"
+                      >
+                        <Download size={12}/>
+                      </button>
+                    )}
                     {g.id !== 'general' && (
                       <button 
                         onClick={(e) => {
@@ -590,7 +641,18 @@ const App: React.FC = () => {
               <p className="text-slate-500">استخراج منظم ودقيق لبيانات المعتمرين مع بريد إلكتروني فريد وجلب تلقائي لأكواد التحقق</p>
             </div>
             
-            <div className="flex gap-4 w-full lg:w-auto">
+            <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                disabled={tasks.length === 0}
+                className="flex-1 sm:flex-none bg-white/[0.03] hover:bg-emerald-500/10 text-emerald-400 border border-white/10 hover:border-emerald-500/30 px-6 py-5 rounded-3xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="تصدير بيانات المعتمرين إلى ملف Excel أو CSV"
+              >
+                <FileSpreadsheet size={20} />
+                <span>تصدير البيانات (Excel / CSV)</span>
+              </button>
+
               <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -601,13 +663,33 @@ const App: React.FC = () => {
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isExtracting}
-                className="flex-1 lg:flex-none bg-emerald-500 text-black px-10 py-5 rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
+                className="flex-1 sm:flex-none bg-emerald-500 text-black px-10 py-5 rounded-3xl font-black flex items-center justify-center gap-3 shadow-2xl hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50"
               >
                 {isExtracting ? <Loader2 className="animate-spin" size={20}/> : <FileText size={20}/>}
-                رفع تأشيرات PDF للمجموعة المحددة
+                {isExtracting ? 'جاري الاستخراج بالذكاء الاصطناعي...' : 'رفع تأشيرات PDF للمجموعة المحددة'}
               </button>
             </div>
           </header>
+
+          {/* إشعار رفع الملف واستخراج البيانات */}
+          {uploadNotice && (
+            <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold animate-fadeIn ${
+              uploadNotice.type === 'success' 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                {uploadNotice.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                <span>{uploadNotice.message}</span>
+              </div>
+              <button 
+                onClick={() => setUploadNotice(null)} 
+                className="opacity-70 hover:opacity-100 text-xs px-2 py-1 rounded-lg hover:bg-white/5"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* شريط حالة جلب أكواد OTP التلقائي */}
           <div className="p-4 bg-[#0c0c0c] border border-white/10 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -697,12 +779,25 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* الاسم المختار للمجموعة حالياً لسهولة التصفح */}
-              <div className="text-right px-1">
-                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">المجموعة المستهدفة حالياً</span>
-                <span className="text-sm text-emerald-400 font-black">
-                  {selectedGroupId === 'all' ? 'جميع المجموعات (مشترك)' : groups.find(g => g.id === selectedGroupId)?.name || 'المجموعة العامة'}
-                </span>
+              {/* الاسم المختار للمجموعة حالياً لسهولة التصفح مع زر تصدير فوري */}
+              <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                {activeGroupTotal > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsExportModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-emerald-500/10 text-emerald-400 border border-white/10 hover:border-emerald-500/30 text-xs font-bold transition-all"
+                    title="تصدير المجموعة المحددة"
+                  >
+                    <Download size={13} />
+                    <span>تصدير ({activeGroupTotal})</span>
+                  </button>
+                )}
+                <div className="text-right px-1">
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">المجموعة المستهدفة حالياً</span>
+                  <span className="text-sm text-emerald-400 font-black">
+                    {selectedGroupId === 'all' ? 'جميع المجموعات (مشترك)' : groups.find(g => g.id === selectedGroupId)?.name || 'المجموعة العامة'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -870,6 +965,16 @@ const App: React.FC = () => {
           onSaveSettings={(newSettings) => setEmailSettings(newSettings)}
         />
       )}
+
+      {/* Export Data to Excel or CSV Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        tasks={tasks}
+        filteredTasks={filteredTasks}
+        selectedGroupId={selectedGroupId}
+        groups={groups}
+      />
     </div>
   );
 };

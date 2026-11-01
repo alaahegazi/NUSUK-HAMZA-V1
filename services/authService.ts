@@ -36,6 +36,65 @@ function saveStoredUsers(users: StoredUser[]): void {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
 }
 
+// Ensure default demo and primary accounts are seeded if missing
+export async function seedDefaultAccountsIfNeeded(): Promise<StoredUser[]> {
+  try {
+    const users = getStoredUsers();
+    let updated = false;
+
+    // 1. Account 1: pharmacydr127@gmail.com / Alaa@1111
+    if (!users.some(u => u.email.toLowerCase() === 'pharmacydr127@gmail.com')) {
+      const salt1 = 'salt_primary_127';
+      const hash1 = await hashValue('Alaa@1111', salt1);
+      users.push({
+        id: 'usr_primary_admin',
+        email: 'pharmacydr127@gmail.com',
+        fullName: 'د. علاء - إدارة العمرة',
+        agencyName: 'حملة النسك المعتمدة',
+        passwordHash: hash1,
+        salt: salt1,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        securityQuestion: 'ما هو اسم وكالتك/شركتك الأولى؟',
+        securityAnswerHash: await hashValue('النسك', salt1)
+      });
+      updated = true;
+    }
+
+    // 2. Account 2: agency.admin@nusuk-demo.com / Nusuk2026!
+    if (!users.some(u => u.email.toLowerCase() === 'agency.admin@nusuk-demo.com')) {
+      const salt2 = 'salt_demo_2026';
+      const hash2 = await hashValue('Nusuk2026!', salt2);
+      users.push({
+        id: 'usr_demo_admin',
+        email: 'agency.admin@nusuk-demo.com',
+        fullName: 'مدير الحملات والخدمات',
+        agencyName: 'وكالة الأنوار للعمرة والحج',
+        passwordHash: hash2,
+        salt: salt2,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        securityQuestion: 'ما هو اسم وكالتك/شركتك الأولى؟',
+        securityAnswerHash: await hashValue('الأنوار', salt2)
+      });
+      updated = true;
+    }
+
+    if (updated) {
+      saveStoredUsers(users);
+    }
+    return users;
+  } catch (err) {
+    console.error('Error seeding default accounts:', err);
+    return getStoredUsers();
+  }
+}
+
+// Automatically seed on import
+if (typeof window !== 'undefined') {
+  seedDefaultAccountsIfNeeded();
+}
+
 // Helper: Get Reset Tokens
 function getStoredResets(): PasswordResetToken[] {
   try {
@@ -142,8 +201,14 @@ export const authService = {
       throw new Error('يرجى إدخال البريد الإلكتروني وكلمة المرور');
     }
 
-    const users = getStoredUsers();
-    const storedUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+    let users = getStoredUsers();
+    let storedUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (!storedUser) {
+      // Try seeding defaults in case of fresh browser session
+      users = await seedDefaultAccountsIfNeeded();
+      storedUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+    }
 
     if (!storedUser) {
       throw new Error('بيانات الدخول غير صحيحة. تحقق من البريد أو أنشئ حساباً جديداً');

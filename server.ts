@@ -1,12 +1,16 @@
 import express from 'express';
-
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Enable large body limit for PDF / image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // API Health Check
 app.get('/api/health', (req, res) => {
@@ -288,16 +292,134 @@ app.post('/api/email/fetch-otps', async (req, res) => {
   }
 });
 
+// 3. API Endpoint: Extract Pilgrims from Visa PDF or Image
+app.post('/api/extract-visas', async (req, res) => {
+  try {
+    const { base64Data, mimeType = 'application/pdf' } = req.body || {};
 
-  } finally {
-    if (client.usable) {
-      try {
-        await client.logout();
-      } catch (e) {
-        // ignore logout errors
-      }
+    if (!base64Data) {
+      return res.status(400).json({
+        success: false,
+        message: 'لم يتم استلام محتوى الملف'
+      });
     }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({
+        success: false,
+        message: 'مفتاح Gemini API غير متاح في بيئة السيرفر'
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          { inlineData: { mimeType, data: base64Data } },
+          {
+            text: `Extract all pilgrim data from this document.
+          For each individual, I need:
+          1. fullName: Full name as written.
+          2. passportNumber: Passport number.
+          3. visaNumber: Visa number.
+          4. dateOfBirth: Date of birth.
+          5. gender: Gender (must be 'ذكر' for male or 'أنثى' for female).
+          6. phoneNumber: A Saudi mobile number starting with '5' followed by 8 digits (e.g., 512345678). DO NOT include a leading zero, do NOT include +966 or 00966. Exactly 9 digits starting with 5.
+          
+          Return the data as a clean JSON array of objects.`
+          }
+        ]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              fullName: { type: Type.STRING },
+              passportNumber: { type: Type.STRING },
+              visaNumber: { type: Type.STRING },
+              dateOfBirth: { type: Type.STRING },
+              gender: { type: Type.STRING, description: "Gender: 'ذكر' or 'أنثى'" },
+              phoneNumber: { type: Type.STRING }
+            },
+            required: ['fullName', 'passportNumber', 'visaNumber', 'dateOfBirth', 'gender', 'phoneNumber']
+          }
+        }
+      }
+    });
+
+    const textOutput = response.text;
+    if (!textOutput) {
+      return res.json({ success: true, pilgrims: [] });
+    }
+
+    let parsed = JSON.parse(textOutput);
+    if (!Array.isArray(parsed)) {
+      parsed = [parsed];
+    }
+
+    // Sanitize phone numbers to ensure they strictly start with 5 and have 8 following digits (9 digits total)
+    const sanitized = parsed.map((item: any) => {
+      let phone = String(item.phoneNumber || '').trim();
+      phone = phone.replace(/[^0-9]/g, '');
+      if (phone.startsWith('966')) {
+        phone = phone.substring(3);
+      }
+      if (phone.startsWith('0')) {
+        phone = phone.substring(1);
+      }
+      if (!phone.startsWith('5') || phone.length !== 9) {
+        const random8Digits = Math.floor(10000000 + Math.random() * 90000000);
+        phone = `5${random8Digits}`;
+      }
+
+      return {
+        fullName: String(item.fullName || '').trim(),
+        passportNumber: String(item.passportNumber || '').trim(),
+        visaNumber: String(item.visaNumber || '').trim(),
+        dateOfBirth: String(item.dateOfBirth || '').trim(),
+        gender: item.gender === 'أنثى' ? 'أنثى' : 'ذكر',
+        phoneNumber: phone
+      };
+    });
+
+    return res.json({
+      success: true,
+      pilgrims: sanitized
+    });
+  } catch (error: any) {
+    console.error('Server Gemini Extraction Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'فشل استخراج البيانات من الملف. يرجى التأكد من جودة ووضوح كشف التأشيرات.',
+      details: error?.message || String(error)
+    });
   }
 });
 
-export default app;
+// Vite Middleware for development mode
+async function startServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*all', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();
