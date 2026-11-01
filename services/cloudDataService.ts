@@ -57,7 +57,7 @@ export const cloudDataService = {
     delete safeDetails.appPassword;
     delete safeDetails.otpCode;
     const { error } = await db.from('operation_audit').insert({
-      user_id: userId, entity_type: entityType, entity_id: entityId, action, details: safeDetails
+      user_id: userId, entity_type: entityType, entity_id: entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entityId) ? entityId : null, action, details: safeDetails
     });
     if (error) throw error;
   }
