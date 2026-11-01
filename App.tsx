@@ -16,10 +16,33 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { EmailConfigModal } from './components/EmailConfigModal';
 import { OtpCardField } from './components/OtpCardField';
 import { ExportModal } from './components/ExportModal';
+import { requireSupabase } from './services/supabaseClient';
+import { cloudDataService } from './services/cloudDataService';
 
 const App: React.FC = () => {
   // حالة المستخدم الحالي والجلسة الآمنة
-  const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let db;
+    try { db = requireSupabase(); } catch { setAuthReady(true); return; }
+    db.auth.getSession().then(({ data, error }) => {
+      if (!alive) return;
+      if (error) console.error(error);
+      const u = data.session?.user;
+      setCurrentUser(u ? { id: u.id, email: u.email ?? '', fullName: String(u.user_metadata?.full_name ?? u.email ?? ''), agencyName: String(u.user_metadata?.agency_name ?? ''), createdAt: u.created_at } : null);
+      setAuthReady(true);
+    }).catch(error => { console.error(error); if (alive) setAuthReady(true); });
+    const { data: listener } = db.auth.onAuthStateChange((_event, session) => {
+      if (!alive) return;
+      const u = session?.user;
+      setCurrentUser(u ? { id: u.id, email: u.email ?? '', fullName: String(u.user_metadata?.full_name ?? u.email ?? ''), agencyName: String(u.user_metadata?.agency_name ?? ''), createdAt: u.created_at } : null);
+      setAuthReady(true);
+    });
+    return () => { alive = false; listener.subscription.unsubscribe(); };
+  }, []);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // مفاتيح التخزين المخصصة لكل مستخدم لضمان خصوصية البيانات وعزلها
@@ -50,6 +73,7 @@ const App: React.FC = () => {
     if (!currentUser) return;
 
     const uid = currentUser.id;
+    setCloudReady(false);
     
     // 1. تحميل المهام
     const savedTasks = localStorage.getItem(getTasksKey(uid));
@@ -73,6 +97,17 @@ const App: React.FC = () => {
     // 5. تحميل إعدادات البريد
     const loadedSettings = emailService.loadSettings(uid, finalEmail);
     setEmailSettings(loadedSettings);
+    let active = true;
+    cloudDataService.load(uid).then(({ groups: cloudGroups, tasks: cloudTasks }) => {
+      if (!active) return;
+      setGroups([{ id: 'general', name: 'المجموعة العامة', createdAt: new Date().toISOString() }, ...cloudGroups]);
+      setTasks(cloudTasks);
+      setCloudReady(true);
+    }).catch(error => {
+      console.error('Cloud load failed; using local cache:', error);
+      if (active) setCloudReady(true);
+    });
+    return () => { active = false; };
   }, [currentUser]);
 
   const [isExtracting, setIsExtracting] = useState(false);
@@ -91,12 +126,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
     localStorage.setItem(getTasksKey(currentUser.id), JSON.stringify(tasks));
-  }, [tasks, currentUser]);
+    if (cloudReady) cloudDataService.saveTasks(currentUser.id, tasks).catch(error => console.error('Cloud task save failed:', error));
+  }, [tasks, currentUser, cloudReady]);
 
   useEffect(() => {
     if (!currentUser) return;
     localStorage.setItem(getGroupsKey(currentUser.id), JSON.stringify(groups));
-  }, [groups, currentUser]);
+    if (cloudReady) cloudDataService.saveGroups(currentUser.id, groups).catch(error => console.error('Cloud group save failed:', error));
+  }, [groups, currentUser, cloudReady]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -109,8 +146,8 @@ const App: React.FC = () => {
   }, [mainEmail, currentUser]);
 
   // Handle Logout
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     setCurrentUser(null);
     setIsProfileModalOpen(false);
   };
