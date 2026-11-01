@@ -50,7 +50,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setIsLoading(true);
 
     try {
-      const updated = authService.updateProfile(user.id, fullName, agencyName);
+      const updated = await authService.updateProfile(user.id, fullName, agencyName);
       setSuccess('تم تحديث بيانات حسابك بنجاح');
       onUserUpdated(updated);
     } catch (err) {
