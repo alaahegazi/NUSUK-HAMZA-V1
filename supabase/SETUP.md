@@ -4,8 +4,7 @@
 1. Open the Supabase project dashboard.
 2. Open **SQL Editor** and create a new query.
 3. Copy and run `supabase/migrations/202611010001_initial_schema.sql`.
-4. Then copy and run `supabase/migrations/202611010002_app_string_ids.sql`.
-5. Confirm both queries complete successfully.
+4. Confirm the query completes successfully. Do not run any UUID-to-text migration; the application is being aligned to the existing UUID schema.
 
 The migration creates:
 - `agency_groups`: groups owned by an authenticated user.
@@ -34,4 +33,4 @@ This migration and setup guide are committed on the isolated `feature/supabase-c
 
 
 ## 6. Current cloud service foundation
-The branch now includes a browser Supabase client (`services/supabaseClient.ts`) and tenant-scoped group/task persistence helpers (`services/cloudDataService.ts`). These are foundations only: the existing login screen and App state are not yet switched to Supabase Auth/cloud sync. Do not deploy this branch as a completed cloud-connected release until that integration and a production build are tested.
+The branch includes a browser Supabase client (`services/supabaseClient.ts`), tenant-scoped group/task persistence helpers (`services/cloudDataService.ts`), and UUID generation for newly created records. These are foundations only: the existing login screen and App state are not yet switched to Supabase Auth/cloud sync. Do not deploy this branch as a completed cloud-connected release until that integration and a production build are tested.
