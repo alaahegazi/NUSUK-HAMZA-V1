@@ -12,7 +12,7 @@ export const authService = {
     if (!/[0-9]/.test(password)) return { isValid: false, message: 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل' };
     return { isValid: true };
   },
-  async register(email: string, password: string, fullName: string, agencyName = ''): Promise<User> {
+  async register(email: string, password: string, fullName: string, agencyName = '', _securityQuestion?: string, _securityAnswer?: string): Promise<User> {
     const check = this.validatePasswordStrength(password);
     if (!email.trim() || !email.includes('@')) throw new Error('يرجى إدخال بريد إلكتروني صحيح');
     if (!fullName.trim()) throw new Error('يرجى إدخال الاسم الكامل');
