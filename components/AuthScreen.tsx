@@ -98,7 +98,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       if (res.securityQuestion) {
         setSecurityQuestionPrompt(res.securityQuestion);
       }
-      setSuccessMsg('تم توليد رمز استعادة كلمة المرور لبريدك البريد الإلكتروني');
+      setSuccessMsg('تم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني. افتح الرابط ثم ارجع لإدخال كلمة المرور الجديدة.');
       setMode('RESET_PASSWORD');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل طلب إعادة التعيين');
@@ -135,31 +135,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Direct quick login without typing
-  const handleQuickLogin = async (loginEmail: string, loginPass: string) => {
-    clearMessages();
-    setIsLoading(true);
-    try {
-      const user = await authService.login(loginEmail, loginPass);
-      setSuccessMsg(`مرحباً بك، ${user.fullName}`);
-      setTimeout(() => {
-        onLoginSuccess(user);
-      }, 400);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول السريع');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Pre-fill test account
-  const handleDemoFill = () => {
-    setEmail('pharmacydr127@gmail.com');
-    setPassword('Alaa@1111');
-    setFullName('د. علاء - إدارة العمرة');
-    setAgencyName('حملة النسك المعتمدة');
-  };
-
   return (
     <div className="min-h-screen bg-[#020202] text-slate-200 font-['Cairo'] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Subtle Gradient Blobs */}
@@ -192,38 +167,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-start gap-3">
             <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
             <div className="leading-relaxed">{successMsg}</div>
-          </div>
-        )}
-
-        {/* Quick 1-Click Access Box */}
-        {mode === 'LOGIN' && (
-          <div className="mb-5 p-3.5 bg-emerald-500/[0.06] border border-emerald-500/20 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400">
-              <span className="flex items-center gap-1.5">
-                <Sparkles size={13} />
-                دخول فوري بنقرة واحدة (جاهز ومفعل):
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={() => handleQuickLogin('pharmacydr127@gmail.com', 'Alaa@1111')}
-                className="p-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-[11px] font-black text-right transition-all flex flex-col gap-0.5"
-              >
-                <span>د. علاء (الحساب الأساسي)</span>
-                <span className="text-[9px] text-emerald-500 font-mono opacity-80">pharmacydr127@gmail.com</span>
-              </button>
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={() => handleQuickLogin('agency.admin@nusuk-demo.com', 'Nusuk2026!')}
-                className="p-2.5 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl text-[11px] font-bold text-right transition-all flex flex-col gap-0.5"
-              >
-                <span>حساب تجريبي وكالة</span>
-                <span className="text-[9px] text-slate-500 font-mono">agency.admin@nusuk-demo.com</span>
-              </button>
-            </div>
           </div>
         )}
 
@@ -306,16 +249,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 </button>
               </p>
 
-              {/* Quick Fill Button */}
-              <button
-                type="button"
-                onClick={handleDemoFill}
-                className="inline-flex items-center gap-1.5 text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-full text-slate-400 transition-colors"
-              >
-                <Sparkles size={12} className="text-amber-400" />
-                تعبئة بيانات الحساب في الحقول
-              </button>
-            </div>
+              </div>
           </form>
         )}
 
@@ -500,7 +434,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-1">
               <h2 className="text-lg font-bold text-white">تعيين كلمة المرور الجديدة</h2>
-              <p className="text-xs text-slate-400">أدخل رمز التحقق المكون من 6 أرقام وكلمة المرور الجديدة.</p>
+              <p className="text-xs text-slate-400">بعد فتح رابط الاستعادة من بريدك الإلكتروني، أدخل كلمة المرور الجديدة.</p>
             </div>
 
             {/* Generated Code Display for preview demo accessibility */}
@@ -512,10 +446,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-bold">رمز التحقق (6 أرقام)</label>
+              <label className="text-xs text-slate-400 font-bold">رمز الاستعادة (اتركه فارغاً عند استخدام رابط البريد)</label>
               <input
                 type="text"
-                required
                 maxLength={6}
                 placeholder="123456"
                 value={resetCode}
