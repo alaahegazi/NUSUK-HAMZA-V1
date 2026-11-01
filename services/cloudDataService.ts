@@ -33,22 +33,34 @@ export const cloudDataService = {
   async saveGroups(userId: string, groups: Group[]): Promise<void> {
     const db = requireSupabase();
     const cloudGroups = groups.filter(g => g.id !== 'general');
-    if (!cloudGroups.length) return;
-    const rows = cloudGroups.map(g => ({ id: g.id, user_id: userId, name: g.name, created_at: g.createdAt }));
-    const { error } = await db.from('agency_groups').upsert(rows, { onConflict: 'id' });
-    if (error) throw error;
+    if (cloudGroups.length) {
+      const rows = cloudGroups.map(g => ({ id: g.id, user_id: userId, name: g.name, created_at: g.createdAt }));
+      const { error } = await db.from('agency_groups').upsert(rows, { onConflict: 'id' });
+      if (error) throw error;
+    }
+    const keepIds = cloudGroups.map(g => g.id);
+    let deletion = db.from('agency_groups').delete().eq('user_id', userId);
+    if (keepIds.length) deletion = deletion.not('id', 'in', `(${keepIds.join(',')})`);
+    const { error: deleteError } = await deletion;
+    if (deleteError) throw deleteError;
   },
 
   async saveTasks(userId: string, tasks: AutomationTask[]): Promise<void> {
     const db = requireSupabase();
-    if (!tasks.length) return;
     const rows = tasks.map(t => ({
       id: t.id, user_id: userId, group_id: t.groupId && t.groupId !== 'general' ? t.groupId : null,
       status: t.status, account_created: Boolean(t.accountCreated),
       data: t.data, operation_logs: t.logs ?? []
     }));
-    const { error } = await db.from('pilgrim_records').upsert(rows, { onConflict: 'id' });
-    if (error) throw error;
+    if (rows.length) {
+      const { error } = await db.from('pilgrim_records').upsert(rows, { onConflict: 'id' });
+      if (error) throw error;
+    }
+    const keepIds = tasks.map(t => t.id);
+    let deletion = db.from('pilgrim_records').delete().eq('user_id', userId);
+    if (keepIds.length) deletion = deletion.not('id', 'in', `(${keepIds.join(',')})`);
+    const { error: deleteError } = await deletion;
+    if (deleteError) throw deleteError;
   },
 
   async recordEvent(userId: string, entityType: string, entityId: string | null, action: string, details: Record<string, unknown> = {}): Promise<void> {
