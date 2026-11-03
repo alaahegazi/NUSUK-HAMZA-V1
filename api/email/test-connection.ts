@@ -2,25 +2,19 @@ import { ImapFlow } from "imapflow";
 
 function cleanAppPassword(value: string): string {
   return String(value || "")
-    .replace(/[\s"']/g, "")
+    .replace(/[\\s"']/g, "")
     .trim();
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof Error) return error.message;
   return String(error || "Unknown error");
 }
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== "POST") {
     return Response.json(
-      {
-        success: false,
-        error: "Method not allowed",
-      },
+      { success: false, message: "Method not allowed" },
       { status: 405 }
     );
   }
@@ -29,36 +23,36 @@ export default async function handler(request: Request): Promise<Response> {
 
   try {
     const body = await request.json();
-
     const email = String(body?.email || "").trim();
-    const password = cleanAppPassword(body?.password);
+    // The UI sends appPassword; accept password too for backwards compatibility.
+    const password = cleanAppPassword(body?.appPassword ?? body?.password);
 
     if (!email || !password) {
       return Response.json(
         {
           success: false,
-          error: "البريد الإلكتروني وكلمة مرور التطبيقات مطلوبان",
+          message: "البريد الإلكتروني وكلمة مرور التطبيقات مطلوبان",
         },
         { status: 400 }
       );
     }
 
+    const host = String(body?.imapHost || "imap.gmail.com").trim();
+    const port = Number(body?.imapPort) || 993;
+
     client = new ImapFlow({
-      host: "imap.gmail.com",
-      port: 993,
-      secure: true,
-      auth: {
-        user: email,
-        pass: password,
-      },
+      host,
+      port,
+      secure: body?.useSsl !== false,
+      auth: { user: email, pass: password },
       logger: false,
+      connectionTimeout: 12000,
+      greetingTimeout: 12000,
+      socketTimeout: 15000,
     });
 
     await client.connect();
-
-    const mailbox = await client.mailboxOpen("INBOX", {
-      readOnly: true,
-    });
+    const mailbox = await client.mailboxOpen("INBOX", { readOnly: true });
 
     await client.logout();
     client = null;
@@ -66,10 +60,7 @@ export default async function handler(request: Request): Promise<Response> {
     return Response.json({
       success: true,
       message: "تم الاتصال بـ Gmail بنجاح",
-      mailbox: {
-        path: mailbox.path,
-        exists: mailbox.exists,
-      },
+      mailbox: { path: mailbox.path, exists: mailbox.exists },
     });
   } catch (error) {
     console.error("Gmail connection error:", error);
@@ -78,14 +69,18 @@ export default async function handler(request: Request): Promise<Response> {
       try {
         await client.logout();
       } catch {
-        // Ignore logout errors
-      }
+        // Ignore cleanup errors.
+    }
     }
 
+    const message = getErrorMessage(error);
     return Response.json(
       {
         success: false,
-        error: getErrorMessage(error),
+        message:
+          /timeout|timed out|econn|enotfound/i.test(message)
+            ? "انتهت مهلة الاتصال بسيرفر Gmail. تحقق من إمكانية اتصال الاستضافة بمنفذ IMAP 993."
+            : message,
       },
       { status: 500 }
     );
