@@ -18,6 +18,7 @@ export const emailService = {
       const res = await fetch('/api/email/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           imapHost: settings.imapHost,
           imapPort: settings.imapPort,
@@ -27,15 +28,17 @@ export const emailService = {
         })
       });
 
-      const data = await res.json();
-      return {
-        success: data.success || false,
-        message: data.message || 'فشل الاتصال بالبريد'
-      };
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || `فشل اختبار الاتصال (HTTP ${res.status})` };
+      }
+      return { success: true, message: data.message || 'تم الاتصال بـ Gmail بنجاح' };
     } catch (err: any) {
       return {
         success: false,
-        message: 'تعذر الاتصال بسيرفر التطبيق. يرجى إعادة المحاولة.'
+        message: err?.name === 'TimeoutError' || err?.name === 'AbortError'
+          ? 'انتهت مهلة اختبار الاتصال بعد 20 ثانية. قد تكون واجهة API أو اتصال IMAP غير متاح.'
+          : `تعذر الاتصال بسيرفر التطبيق: ${err?.message || 'خطأ غير معروف'}`
       };
     }
   },
