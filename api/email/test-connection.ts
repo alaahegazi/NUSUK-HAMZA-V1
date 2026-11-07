@@ -2,7 +2,7 @@ import { ImapFlow } from "imapflow";
 
 function cleanAppPassword(value: string): string {
   return String(value || "")
-    .replace(/[\\s"']/g, "")
+    .replace(/[\s"']/g, "")
     .trim();
 }
 
